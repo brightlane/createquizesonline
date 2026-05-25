@@ -1,0 +1,114 @@
+name: GetResponse AI Growth Engine
+
+on:
+  schedule:
+    # Daily at 4:00 AM UTC
+    - cron: '0 4 * * *'
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: getresponse-ai-growth-engine
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build GetResponse AI Authority Site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade Pip
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Verify Build Engine
+        run: |
+          echo "Checking repository structure..."
+
+          ls -la
+
+          if [ ! -f build.py ]; then
+            echo "ERROR: build.py not found"
+            exit 1
+          fi
+
+      - name: Remove Previous Public Build
+        run: |
+          rm -rf public
+
+      - name: Run GetResponse AI Build Engine
+        run: |
+          python build.py
+
+      - name: Validate Generated Files
+        run: |
+          echo "Checking generated output..."
+
+          ls -la public
+
+          test -f public/index.html
+          test -f public/sitemap.xml
+          test -f public/robots.txt
+          test -f public/llms.txt
+          test -f public/404.html
+
+      - name: Configure Git Credentials
+        run: |
+          git config --global user.name "GetResponse-AI-Bot"
+          git config --global user.email "bot@getresponseaihub.com"
+
+      - name: Commit Generated Authority Pages
+        run: |
+          git add .
+
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            exit 0
+          fi
+
+          git commit -m "GetResponse AI Growth Refresh [$(date +'%Y-%m-%d')]"
+
+      - name: Pull Latest Changes
+        run: |
+          git pull origin main --rebase
+
+      - name: Push Updated Site
+        run: |
+          git push origin main
+
+      - name: Upload GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+  deploy:
+    name: Deploy GetResponse Site
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
